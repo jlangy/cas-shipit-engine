@@ -12,6 +12,7 @@ module Shipit
         avatar_url: 'https://avatars.githubusercontent.com/u/42?v=3',
         url: 'https://api.github.com/user/george',
       )
+      @org_domain = "shopify.com"
       @minimal_github_user = stub(
         id: 43,
         name: nil,
@@ -61,6 +62,83 @@ module Shipit
       FakeWeb.register_uri(:get, "https://api.github.com/user/emails", status: %w(200 OK), body: [].to_json, content_type: "application/json")
       user = User.find_or_create_from_github(@minimal_github_user)
       assert_equal @minimal_github_user.login, user.login
+    end
+
+    test "find_or_create_from_github selects any email when org email is unspecified" do
+      github_org_user = stub(
+        id: 42,
+        name: 'Jim Jones',
+        login: 'jim',
+        email: "jim@#{@org_domain}",
+        avatar_url: 'https://avatars.githubusercontent.com/u/42?v=3',
+        url: 'https://api.github.com/user/jim',
+      )
+
+      previous_preferred_org_emails = Shipit.preferred_org_emails
+
+      begin
+        Shipit.preferred_org_emails = [].freeze
+        user = User.find_or_create_from_github(github_org_user)
+        assert_equal github_org_user.email, user.email
+      ensure
+        Shipit.preferred_org_emails = previous_preferred_org_emails
+      end
+    end
+
+    test "find_or_create_from_github selects org email for user" do
+      Shipit.preferred_org_emails = [@org_domain]
+      expected_email = "myuser@#{@org_domain}"
+      FakeWeb.register_uri(:get, "https://api.github.com/user/emails", status: %w(200 OK), body: [{email: expected_email}].to_json, content_type: "application/json")
+
+      user = User.find_or_create_from_github(@github_user)
+      assert_equal expected_email, user.email
+    end
+
+    test "find_or_create_from_github selects private and primary org email for user when necessary" do
+      Shipit.preferred_org_emails = [@org_domain]
+      expected_email = "myuser@#{@org_domain}"
+      result_email_records = [
+        {
+          email: "notmyuser1@#{@org_domain}",
+          primary: false,
+        },
+        {
+          email: "notmyuser2@#{@org_domain}",
+        },
+        {
+          email: expected_email,
+          primary: true,
+        },
+      ]
+
+      FakeWeb.register_uri(:get, "https://api.github.com/user/emails", status: %w(200 OK), body: result_email_records.to_json, content_type: "application/json")
+
+      user = User.find_or_create_from_github(@github_user)
+      assert_equal expected_email, user.email
+    end
+
+    test "find_or_create_from_github selects no email when org emails are provided but not found" do
+      Shipit.preferred_org_emails = [@org_domain]
+      result_email_records = [
+        {
+          email: "notmyuser1@not#{@org_domain}",
+          primary: false,
+        },
+        {
+          email: "notmyuser2@not#{@org_domain}",
+        },
+      ]
+
+      FakeWeb.register_uri(:get, "https://api.github.com/user/emails", status: %w(200 OK), body: result_email_records.to_json, content_type: "application/json")
+
+      user = User.find_or_create_from_github(@github_user)
+      assert_nil user.email
+    end
+
+    test "find_or_create_from_github handles user permissions errors" do
+      FakeWeb.register_uri(:get, "https://api.github.com/user/emails", status: %w(404 Not Found), content_type: "application/json")
+      user = User.find_or_create_from_github(@minimal_github_user)
+      assert_nil user.email
     end
 
     test "#identifiers_for_ping returns a hash with the user's github_id, name, email and github_login" do
