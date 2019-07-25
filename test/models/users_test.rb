@@ -3,6 +3,7 @@ require 'test_helper'
 module Shipit
   class UsersTest < ActiveSupport::TestCase
     setup do
+      @previous_preferred_org_emails = Shipit.preferred_org_emails
       @user = shipit_users(:walrus)
       @github_user = stub(
         id: 42,
@@ -22,6 +23,10 @@ module Shipit
         url: 'https://api.github.com/user/peter',
         rels: nil,
       )
+    end
+
+    teardown do
+      Shipit.preferred_org_emails = @previous_preferred_org_emails
     end
 
     test "find_or_create_from_github persist a new user if he is unknown" do
@@ -74,15 +79,9 @@ module Shipit
         url: 'https://api.github.com/user/jim',
       )
 
-      previous_preferred_org_emails = Shipit.preferred_org_emails
-
-      begin
-        Shipit.preferred_org_emails = [].freeze
-        user = User.find_or_create_from_github(github_org_user)
-        assert_equal github_org_user.email, user.email
-      ensure
-        Shipit.preferred_org_emails = previous_preferred_org_emails
-      end
+      Shipit.preferred_org_emails = [].freeze
+      user = User.find_or_create_from_github(github_org_user)
+      assert_equal github_org_user.email, user.email
     end
 
     test "find_or_create_from_github selects org email for user" do
