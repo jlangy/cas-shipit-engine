@@ -35,7 +35,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'rails_autolink', '~> 1.1.6'
   s.add_dependency 'rake', '~> 10.0'
   s.add_dependency 'redis-namespace', '~> 1.5.2'
-  s.add_dependency 'redis-objects', '~> 1.2.1'
+  s.add_dependency 'redis-objects', '>= 1.2.1', '< 1.6.0'
   s.add_dependency 'responders', '~> 2.4.0'
   s.add_dependency 'safe_yaml', '~> 1.0.4'
   s.add_dependency 'sass-rails', '~> 5.0'
